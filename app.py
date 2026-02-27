@@ -1,52 +1,126 @@
-from fastapi import FastAPI, UploadFile
-import os
-import io
-import gdown
+import streamlit as st
 import numpy as np
+import tensorflow as tf
+import gdown
+import os
+import requests
+import base64
+import io
+import time
 from PIL import Image
 
-os.environ["TF_USE_LEGACY_KERAS"] = "1"  # force Keras 2 behavior
+# ─────────────────────────────────────────
+# CONFIG
+# ─────────────────────────────────────────
+MODEL_PATH = "disc_model.keras"
+GDRIVE_FILE_ID = "1iUABWQZnCs9EBfCtWJe2I8G5pfGdFstm"
+IMAGE_SIZE = (224, 224)
+CLASS_NAMES = ["Good", "Defective"]
+BRIDGE_URL = "https://calathiform-dorsoventral-gavyn.ngrok-free.dev"
 
-import tensorflow as tf
-import tf_keras as keras
+# ─────────────────────────────────────────
+# DOWNLOAD & LOAD MODEL
+# ─────────────────────────────────────────
+@st.cache_resource
+def load_model():
+    if not os.path.exists(MODEL_PATH):
+        with st.spinner("⏳ Downloading model from Google Drive... (first time only)"):
+            gdown.download(
+                f"https://drive.google.com/uc?id={GDRIVE_FILE_ID}",
+                MODEL_PATH,
+                quiet=False
+            )
+    return tf.keras.models.load_model(MODEL_PATH)
 
-app = FastAPI()
+# ─────────────────────────────────────────
+# PREDICT
+# ─────────────────────────────────────────
+def predict(model, image_bytes):
+    img = Image.open(io.BytesIO(image_bytes)).convert("RGB")
+    img = img.resize(IMAGE_SIZE)
+    img = np.array(img) / 255.0
+    img = np.expand_dims(img, axis=0)
+    prediction = model.predict(img, verbose=0)
+    confidence = float(np.max(prediction))
+    label = CLASS_NAMES[int(np.argmax(prediction))]
+    return label, confidence
 
-MODEL_PATH = "disc_model_clean.keras"
-FILE_ID    = "1dpn-04f9cUEIR2pIEoKmsKYoMKYxsfgI"
+# ─────────────────────────────────────────
+# UI
+# ─────────────────────────────────────────
+st.set_page_config(page_title="Disc Inspection", layout="wide", page_icon="🔍")
+st.title("🔍 Industrial Disc Inspection — Live Feed")
+st.caption(f"Model: `{MODEL_PATH}` | Input: `224x224` | Classes: Good / Defective")
 
-CLASS_NAMES = ["good", "patches", "rolled_pits", "scratches", "waist_folding"]
-IMG_SIZE    = (224, 224)
+model = load_model()
+st.success("✅ Model loaded!")
 
-if not os.path.exists(MODEL_PATH):
-    print("Downloading disc defect model from Google Drive...")
-    gdown.download(f"https://drive.google.com/uc?id={FILE_ID}", MODEL_PATH, quiet=False)
+# Counters
+if "good_count" not in st.session_state:
+    st.session_state.good_count = 0
+if "defective_count" not in st.session_state:
+    st.session_state.defective_count = 0
+if "total" not in st.session_state:
+    st.session_state.total = 0
 
-model = keras.models.load_model(MODEL_PATH)
-print("✅ Model loaded successfully")
+# Layout
+col1, col2 = st.columns([2, 1])
 
-@app.get("/")
-def home():
-    return {"status": "Disc Defect Detection API Running", "classes": CLASS_NAMES}
+with col1:
+    st.subheader("📷 Live Camera Frame")
+    frame_placeholder = st.empty()
 
-@app.post("/predict")
-async def predict(file: UploadFile):
-    contents  = await file.read()
-    image     = Image.open(io.BytesIO(contents)).convert("RGB")
-    image     = image.resize(IMG_SIZE)
-    img_array = np.expand_dims(np.array(image, dtype=np.float32) / 255.0, axis=0)
+with col2:
+    st.subheader("🤖 Prediction Result")
+    result_placeholder = st.empty()
+    confidence_placeholder = st.empty()
+    st.divider()
+    st.subheader("📊 Stats")
+    counter_placeholder = st.empty()
 
-    probs      = model.predict(img_array)[0]
-    pred_idx   = int(np.argmax(probs))
-    pred_class = CLASS_NAMES[pred_idx]
-    confidence = float(probs[pred_idx])
+st.divider()
+stop = st.button("⛔ Stop Inspection", type="primary")
 
-    return {
-        "predicted_class": pred_class,
-        "confidence":      round(confidence, 4),
-        "is_defective":    pred_class != "good",
-        "probabilities": {
-            name: round(float(p), 4)
-            for name, p in zip(CLASS_NAMES, probs)
-        }
-    }
+# ─────────────────────────────────────────
+# LIVE LOOP — polls Colab bridge
+# ─────────────────────────────────────────
+while not stop:
+    try:
+        response = requests.get(
+            f"{BRIDGE_URL}/latest",
+            timeout=5,
+            headers={"ngrok-skip-browser-warning": "true"}
+        )
+        data = response.json()
+
+        if data.get("image"):
+            image_bytes = base64.b64decode(data["image"])
+            label, confidence = predict(model, image_bytes)
+
+            st.session_state.total += 1
+            if label == "Defective":
+                st.session_state.defective_count += 1
+                result_placeholder.error(f"🔴  **{label}**")
+            else:
+                st.session_state.good_count += 1
+                result_placeholder.success(f"🟢  **{label}**")
+
+            frame_placeholder.image(image_bytes, use_column_width=True)
+            confidence_placeholder.metric("Confidence", f"{confidence * 100:.1f}%")
+
+            defect_rate = (st.session_state.defective_count / st.session_state.total * 100) if st.session_state.total > 0 else 0
+            counter_placeholder.markdown(f"""
+| Status | Count |
+|---|---|
+| ✅ Good | {st.session_state.good_count} |
+| ❌ Defective | {st.session_state.defective_count} |
+| 🔢 Total | {st.session_state.total} |
+| 📉 Defect Rate | {defect_rate:.1f}% |
+            """)
+        else:
+            frame_placeholder.info("⏳ Waiting for camera frame...")
+
+    except Exception as e:
+        frame_placeholder.warning(f"⚠️ Bridge not reachable: {e}")
+
+    time.sleep(2)
