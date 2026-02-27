@@ -12,8 +12,8 @@ import tf_keras as keras
 
 app = FastAPI()
 
-MODEL_PATH = "disc_model.keras"
-FILE_ID    = "1iUABWQZnCs9EBfCtWJe2I8G5pfGdFstm"
+MODEL_PATH = "disc_model_clean.keras"
+FILE_ID    = "1dpn-04f9cUEIR2pIEoKmsKYoMKYxsfgI"
 
 CLASS_NAMES = ["good", "patches", "rolled_pits", "scratches", "waist_folding"]
 IMG_SIZE    = (224, 224)
