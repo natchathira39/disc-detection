@@ -12,8 +12,8 @@ from PIL import Image
 # ─────────────────────────────────────────
 # CONFIG
 # ─────────────────────────────────────────
-MODEL_PATH = "disc_model.keras"
-GDRIVE_FILE_ID = "1iUABWQZnCs9EBfCtWJe2I8G5pfGdFstm"
+MODEL_PATH = "disc_model_v2.keras"
+GDRIVE_FILE_ID = "1xhlk9P9pIRLEdyX23HSMPBC-0Gck6Okm"
 IMAGE_SIZE = (224, 224)
 CLASS_NAMES = ["Good", "Defective"]
 BRIDGE_URL = "https://calathiform-dorsoventral-gavyn.ngrok-free.dev"
