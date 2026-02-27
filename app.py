@@ -1,6 +1,6 @@
 import streamlit as st
 import numpy as np
-import tensorflow as tf
+import keras
 import gdown
 import os
 import requests
@@ -30,7 +30,7 @@ def load_model():
                 MODEL_PATH,
                 quiet=False
             )
-    return tf.keras.models.load_model(MODEL_PATH)
+    return keras.models.load_model(MODEL_PATH, compile=False)
 
 # ─────────────────────────────────────────
 # PREDICT
@@ -82,7 +82,7 @@ st.divider()
 stop = st.button("⛔ Stop Inspection", type="primary")
 
 # ─────────────────────────────────────────
-# LIVE LOOP — polls Colab bridge
+# LIVE LOOP
 # ─────────────────────────────────────────
 while not stop:
     try:
@@ -108,7 +108,10 @@ while not stop:
             frame_placeholder.image(image_bytes, use_column_width=True)
             confidence_placeholder.metric("Confidence", f"{confidence * 100:.1f}%")
 
-            defect_rate = (st.session_state.defective_count / st.session_state.total * 100) if st.session_state.total > 0 else 0
+            defect_rate = (
+                st.session_state.defective_count / st.session_state.total * 100
+                if st.session_state.total > 0 else 0
+            )
             counter_placeholder.markdown(f"""
 | Status | Count |
 |---|---|
