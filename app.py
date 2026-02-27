@@ -8,14 +8,12 @@ import os
 
 app = FastAPI()
 
-# ─── Model config ─────────────────────────────────────────────────────────────
-MODEL_PATH = "best_model_20260208_073549.h5"
-FILE_ID    = "1q0LGb0baNFdatTKM2PhGMI89GNPC4I5B"   # ← only line you need to change
+MODEL_PATH = "disc_model.keras"
+FILE_ID    = "1iUABWQZnCs9EBfCtWJe2I8G5pfGdFstm"
 
 CLASS_NAMES = ["good", "patches", "rolled_pits", "scratches", "waist_folding"]
-IMG_SIZE    = (224, 224)   # MobileNetV2 input size used during training
+IMG_SIZE    = (224, 224)
 
-# ─── Download model from Google Drive on first startup ────────────────────────
 if not os.path.exists(MODEL_PATH):
     print("Downloading disc defect model from Google Drive...")
     gdown.download(f"https://drive.google.com/uc?id={FILE_ID}", MODEL_PATH, quiet=False)
@@ -23,23 +21,18 @@ if not os.path.exists(MODEL_PATH):
 model = tf.keras.models.load_model(MODEL_PATH)
 print("✅ Model loaded successfully")
 
-# ─── Routes ───────────────────────────────────────────────────────────────────
 @app.get("/")
 def home():
     return {"status": "Disc Defect Detection API Running", "classes": CLASS_NAMES}
 
-
 @app.post("/predict")
 async def predict(file: UploadFile):
-    contents = await file.read()
-
-    # Preprocess exactly as done during training
-    image    = Image.open(io.BytesIO(contents)).convert("RGB")
-    image    = image.resize(IMG_SIZE)
+    contents  = await file.read()
+    image     = Image.open(io.BytesIO(contents)).convert("RGB")
+    image     = image.resize(IMG_SIZE)
     img_array = np.expand_dims(np.array(image, dtype=np.float32) / 255.0, axis=0)
 
-    # Inference
-    probs      = model.predict(img_array)[0]          # shape (5,)
+    probs      = model.predict(img_array)[0]
     pred_idx   = int(np.argmax(probs))
     pred_class = CLASS_NAMES[pred_idx]
     confidence = float(probs[pred_idx])
