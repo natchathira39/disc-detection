@@ -28,7 +28,7 @@ async def predict(file: UploadFile):
     image = image.resize((128, 128))
     img_array = np.expand_dims(np.array(image) / 255.0, axis=0)
     prediction = model.predict(img_array)
-    result = "PASS" if prediction[0][0] < 0.5 else "FAIL"
+    result = "undefect" if prediction[0][0] < 0.5 else "defect"
     confidence = float(prediction[0][0])
     return {"result": result, "confidence": confidence}
 web: uvicorn app:app --host 0.0.0.0 --port $PORT
