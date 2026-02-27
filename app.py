@@ -1,10 +1,14 @@
 from fastapi import FastAPI, UploadFile
-import tensorflow as tf
-import numpy as np
-from PIL import Image
+import os
 import io
 import gdown
-import os
+import numpy as np
+from PIL import Image
+
+os.environ["TF_USE_LEGACY_KERAS"] = "1"  # force Keras 2 behavior
+
+import tensorflow as tf
+import tf_keras as keras
 
 app = FastAPI()
 
@@ -18,7 +22,7 @@ if not os.path.exists(MODEL_PATH):
     print("Downloading disc defect model from Google Drive...")
     gdown.download(f"https://drive.google.com/uc?id={FILE_ID}", MODEL_PATH, quiet=False)
 
-model = tf.keras.models.load_model(MODEL_PATH)
+model = keras.models.load_model(MODEL_PATH)
 print("✅ Model loaded successfully")
 
 @app.get("/")
