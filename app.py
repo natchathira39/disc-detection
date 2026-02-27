@@ -8,8 +8,8 @@ import os
 
 app = FastAPI()
 
-MODEL_PATH = "best_model_20260208_073549.h5"
-FILE_ID = "1soeqMV4kO9EZg6JMny-c5CYEhf5yIB01"
+MODEL_PATH = "disc_defect_model.keras"
+FILE_ID = "11eFwJ0gLQMYvOu0bee6nwi2sMCtDxWDz"
 
 if not os.path.exists(MODEL_PATH):
     print("Downloading model from Google Drive...")
@@ -19,7 +19,7 @@ model = tf.keras.models.load_model(MODEL_PATH)
 
 @app.get("/")
 def home():
-    return {"status": "PCB Defect Detection API Running"}
+    return {"status": "Disc Defect Detection API Running"}
 
 @app.post("/predict")
 async def predict(file: UploadFile):
